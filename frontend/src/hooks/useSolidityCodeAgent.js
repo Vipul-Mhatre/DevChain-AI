@@ -1,17 +1,19 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
-import { AssistantStream } from "openai/lib/AssistantStream";
+import { useState, useCallback, useMemo } from "react";
+
+// Load the Gemini API key from environment variables (set this in your .env file)
+const GEMINI_API_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY || "your-fallback-key";
 
 export function useSolidityCodeAgent() {
-  const [agentResponse, setAgentResponse] = useState(
-    "// Solidity code will appear here"
-  );
+  // State for the generated Solidity code
+  const [agentResponse, setAgentResponse] = useState("// Solidity code will appear here");
+  // State to disable input during processing
   const [inputDisabled, setInputDisabled] = useState(false);
-  const [threadId, setThreadId] = useState("");
-  const [progressMessage, setProgressMessage] = useState(
-    "Understanding your question..."
-  );
+  // State for progress messages during code generation
+  const [progressMessage, setProgressMessage] = useState("Understanding your question...");
+  // State to store the interval ID for progress messages
   const [intervalId, setIntervalId] = useState(null);
 
+  // Memoized array of progress messages
   const codeGenerationMessages = useMemo(
     () => [
       "Retrieving knowledge base...",
@@ -22,15 +24,7 @@ export function useSolidityCodeAgent() {
     []
   );
 
-  useEffect(() => {
-    const createThread = async () => {
-      const res = await fetch(`/api/assistants/threads`, { method: "POST" });
-      const data = await res.json();
-      setThreadId(data.threadId);
-    };
-    createThread();
-  }, []);
-
+  // Function to remove unwanted formatting from the API response
   const removeSolidityFormatting = useCallback((inputString) => {
     return inputString
       .trim()
@@ -39,61 +33,104 @@ export function useSolidityCodeAgent() {
       .trim();
   }, []);
 
-  const handleReadableStream = useCallback(
-    (stream) => {
-      let accumulatedResponse = "";
-      stream.on("textDelta", (delta) => {
-        if (delta.value != null) {
-          accumulatedResponse += delta.value;
-        }
-      });
-      stream.on("event", (event) => {
-        if (event.event === "thread.run.completed") {
-          console.log("agent response", accumulatedResponse);
-          const processed_ans = removeSolidityFormatting(accumulatedResponse);
-          setAgentResponse(processed_ans);
-            localStorage.setItem('loadedContractCode', processed_ans);
-          setInputDisabled(false);
-          clearInterval(intervalId);
-        }
-      });
-    },
-    [removeSolidityFormatting]
-  );
-
+  // Progress message logic
   const messages = codeGenerationMessages;
   let messageIndex = 0;
+
   const displayMessage = () => {
     if (messageIndex < messages.length) {
       setProgressMessage(messages[messageIndex]);
       messageIndex++;
     } else {
-      messageIndex = 0; // Reset to start from the beginning
+      messageIndex = 0; // Loop back to the start
     }
   };
 
+  // Main function to handle user input and generate Solidity code
   const handleRunAgent = useCallback(
     async (userInput) => {
-      if (!userInput.trim()) return;
-      setInputDisabled(true);
+      if (!userInput.trim()) return; // Ignore empty input
 
-      //show progress to the user every 2 seconds
-      let intervalId = setInterval(displayMessage, 3000); // 2000 ms = 2 seconds
-      setIntervalId(intervalId);
+      setInputDisabled(true); // Disable input during processing
+      setAgentResponse("// Generating Solidity code..."); // Reset response
 
-      const response = await fetch(
-        `/api/assistants/threads/${threadId}/messages`,
-        {
-          method: "POST",
-          body: JSON.stringify({ content: userInput, agentName: "solidity" }),
+      // Start displaying progress messages every 3 seconds
+      const id = setInterval(displayMessage, 3000);
+      setIntervalId(id);
+
+      try {
+        // Make a request to the Gemini API
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              contents: [
+                {
+                  parts: [
+                    {
+                      text: `You are a Solidity code agent. Your task is to write clear, secure, and gas-efficient Solidity code based on the user's requirements. Always include detailed comments to explain your code. At the top of every contract, include an SPDX license identifier. Use "SPDX-License-Identifier: MIT" for open-source code or "SPDX-License-Identifier: UNLICENSED" for non-open-source code unless the user specifies otherwise. Format your response as pure Solidity code without markdown formatting.
+                      
+                      User request: ${userInput}`,
+                    },
+                  ],
+                },
+              ],
+              generationConfig: {
+                temperature: 0.2, // Low temperature for precise output
+                topK: 40,
+                topP: 0.95,
+                maxOutputTokens: 8192, // Allow for longer responses if needed
+              },
+              safetySettings: [
+                { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+                { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+                { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+                { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+              ],
+            }),
+          }
+        );
+
+        // Check if the API request was successful
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`API request failed: ${response.status} - ${errorText}`);
         }
-      );
-      const stream = AssistantStream.fromReadableStream(response.body);
-      handleReadableStream(stream);
+
+        const data = await response.json();
+
+        // Extract the generated code from the API response
+        let responseText = "";
+        if (
+          data.candidates &&
+          data.candidates.length > 0 &&
+          data.candidates[0].content &&
+          data.candidates[0].content.parts &&
+          data.candidates[0].content.parts.length > 0
+        ) {
+          responseText = data.candidates[0].content.parts[0].text || "";
+        }
+
+        // Process the response and update the state
+        const processedCode = removeSolidityFormatting(responseText);
+        setAgentResponse(processedCode);
+        localStorage.setItem("loadedContractCode", processedCode); // Save to local storage
+      } catch (error) {
+        console.error("Error processing agent response:", error);
+        setAgentResponse(`// Error: ${error.message}\n// Please check your API key and try again.`);
+      } finally {
+        setInputDisabled(false); // Re-enable input
+        clearInterval(id); // Stop progress messages
+      }
     },
-    [threadId, handleReadableStream]
+    [removeSolidityFormatting]
   );
 
+  // Return the hook's API
   return {
     agentResponse,
     handleRunAgent,

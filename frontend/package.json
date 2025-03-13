@@ -25,6 +25,8 @@
     "ethers": "5.6.1",
     "firebase": "^10.13.1",
     "framer-motion": "^11.3.31",
+    "fs": "^0.0.1-security",
+    "gemini-api": "^2.0.4",
     "i": "^0.3.7",
     "monaco-editor": "^0.50.0",
     "monaco-language-cairo": "^0.0.1",

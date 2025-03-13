@@ -26,6 +26,7 @@ export default function Editor() {
 
     const [userPrompt, setUserPrompt] = useState("");
     const [result, setResult] = useState(null);
+    
     const {setContractState, contractState} = useContractState();
     const [isCompiling, setCompiling] = useState(false);
     const [isDeploying, setIsDeploying] = useState(false);
