@@ -1,122 +1,128 @@
 import requests
 from bs4 import BeautifulSoup
-import json
+import sqlite3
+from queue import Queue
+from urllib.parse import urlparse, urljoin
 import time
 import base64
 
-def scrape_url(url):
+allowed_domains = {'flare.network', 'docs.flare.network', 'dev.flare.network'}
+
+def is_allowed(url):
+    parsed = urlparse(url)
+    return parsed.netloc in allowed_domains and not parsed.path.endswith(('.css', '.js', '.jpg', '.jpeg', '.png', '.gif', '.pdf'))
+
+def create_database():
+    db = sqlite3.connect('flare_knowledge_base.db')
+    with db as conn:
+        conn.execute('''CREATE TABLE IF NOT EXISTS web_pages
+                        (id INTEGER PRIMARY KEY, source TEXT, url TEXT UNIQUE, title TEXT, content TEXT)''')
+        conn.execute('''CREATE TABLE IF NOT EXISTS github_repos
+                        (id INTEGER PRIMARY KEY, name TEXT, description TEXT, readme_content TEXT)''')
+    return db
+
+def insert_web_page(db, source, url, title, content):
+    with db as conn:
+        conn.execute("INSERT INTO web_pages (source, url, title, content) VALUES (?, ?, ?, ?)", (source, url, title, content))
+
+def insert_github_repo(db, name, description, readme_content):
+    with db as conn:
+        conn.execute("INSERT INTO github_repos (name, description, readme_content) VALUES (?, ?, ?)", (name, description, readme_content))
+
+def crawl_page(url, source, db, crawled_urls, queue):
     try:
-        response = requests.get(url, timeout=10)
+        response = requests.get(url)
         if response.status_code != 200:
-            print(f"Failed to fetch {url} - Status code: {response.status_code}")
-            return None
+            return
         soup = BeautifulSoup(response.text, 'html.parser')
-        content_div = soup.find('div', class_='content')  
-        if content_div:
-            content = content_div.get_text(separator=' ', strip=True)
-        else:
-            content = soup.get_text(separator=' ', strip=True)
-        return {"url": url, "content": content}
-    except requests.RequestException as e:
-        print(f"Error scraping {url}: {e}")
-        return None
-    
-def scrape_main_website():
-    url = "https://flare.network"
-    data = scrape_url(url)
-    return [data] if data else []
+        title = soup.title.string if soup.title else ''
+        content = ' '.join(s.strip() for s in soup.stripped_strings)
+        insert_web_page(db, source, url, title, content)
+        for link in soup.find_all('a'):
+            href = link.get('href')
+            if not href:
+                continue
+            full_url = urljoin(url, href)
+            if is_allowed(full_url) and full_url not in crawled_urls:
+                queue.put(full_url)
+                crawled_urls.add(full_url)
+    except Exception as e:
+        print(f"Error crawling {url}: {e}")
 
-def scrape_documentation():
-    urls = [
-        "https://docs.flare.network",
-        "https://docs.flare.network/tech/flare",
-        "https://docs.flare.network/infra/validation/deploying/",
-        "https://docs.flare.network/infra/observation/deploying/"
+def scrape_main_website(db):
+    start_url = 'https://flare.network/'
+    queue = Queue()
+    crawled_urls = set()
+    queue.put(start_url)
+    crawled_urls.add(start_url)
+    while not queue.empty():
+        url = queue.get()
+        crawl_page(url, 'main_website', db, crawled_urls, queue)
+
+def scrape_documentation(db):
+    start_url = 'https://docs.flare.network/'
+    queue = Queue()
+    crawled_urls = set()
+    queue.put(start_url)
+    crawled_urls.add(start_url)
+    while not queue.empty():
+        url = queue.get()
+        crawl_page(url, 'documentation', db, crawled_urls, queue)
+
+def scrape_developer_hub(db):
+    start_url = 'https://dev.flare.network/'
+    queue = Queue()
+    crawled_urls = set()
+    queue.put(start_url)
+    crawled_urls.add(start_url)
+    while not queue.empty():
+        url = queue.get()
+        crawl_page(url, 'developer_hub', db, crawled_urls, queue)
+
+def scrape_github_repositories(db):
+    repos = [
+        'flare-smart-contracts-v2',
+        'developer-hub',
+        'flare-hardhat-starter',
+        'flare-systems',
+        'go-flare'
     ]
-    data = []
-    for url in urls:
-        page_data = scrape_url(url)
-        if page_data:
-            data.append(page_data)
-        time.sleep(0.5)  
-    return data
-
-def scrape_developer_hub():
-    urls = [
-        "https://dev.flare.network",
-        "https://dev.flare.network/fassets/overview",
-        "https://dev.flare.network/intro"
-    ]
-    data = []
-    for url in urls:
-        page_data = scrape_url(url)
-        if page_data:
-            data.append(page_data)
-        time.sleep(0.5) 
-    return data
-
-def scrape_github_repositories():
-    base_url = "https://api.github.com/orgs/flare-foundation/repos"
-    try:
-        response = requests.get(base_url, timeout=10)
-        if response.status_code != 200:
-            print(f"Failed to fetch GitHub repos - Status code: {response.status_code}")
-            return []
-        repos = response.json()
-        if not isinstance(repos, list):
-            print("Unexpected response format from GitHub API")
-            return []
-        
-        repository_data = []
-        for repo in repos:
-            repo_name = repo.get('name', 'Unknown')
-            repo_description = repo.get('description', '')
-            readme_url = f"https://api.github.com/repos/flare-foundation/{repo_name}/readme"
-            readme_response = requests.get(readme_url, timeout=10)
-            readme_text = ""
+    for repo in repos:
+        url = f"https://api.github.com/repos/flare-foundation/{repo}"
+        response = requests.get(url)
+        if response.status_code == 200:
+            data = response.json()
+            name = data.get('name', 'Unknown')
+            description = data.get('description', 'No description')
+            readme_url = f"https://api.github.com/repos/flare-foundation/{repo}/readme"
+            readme_response = requests.get(readme_url)
             if readme_response.status_code == 200:
                 readme_data = readme_response.json()
                 if 'content' in readme_data:
-                    readme_text = base64.b64decode(readme_data['content']).decode('utf-8', errors='ignore')
+                    readme_content = base64.b64decode(readme_data['content']).decode('utf-8', errors='ignore')
+                else:
+                    readme_content = "No README found"
             else:
-                print(f"Failed to fetch README for {repo_name}")
-            
-            repository_data.append({
-                "name": repo_name,
-                "description": repo_description,
-                "readme": readme_text
-            })
-            time.sleep(1) 
-        return repository_data
-    except requests.RequestException as e:
-        print(f"Error scraping GitHub repositories: {e}")
-        return []
-
-def store_data(data, filename):
-    try:
-        with open(filename, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=4)
-        print(f"Data saved to {filename}")
-    except Exception as e:
-        print(f"Error saving data to {filename}: {e}")
+                readme_content = "Failed to fetch README"
+            insert_github_repo(db, name, description, readme_content)
+        else:
+            print(f"Failed to fetch {repo}")
+        time.sleep(1)  # Respect GitHub API rate limits
 
 if __name__ == "__main__":
-    print("Starting data scraping process...")
-
+    db = create_database()
+    
     print("Scraping main website...")
-    main_website_data = scrape_main_website()
-    store_data(main_website_data, "main_website.json")
-
+    scrape_main_website(db)
+    
     print("Scraping documentation...")
-    documentation_data = scrape_documentation()
-    store_data(documentation_data, "documentation.json")
-
+    scrape_documentation(db)
+    
     print("Scraping developer hub...")
-    developer_hub_data = scrape_developer_hub()
-    store_data(developer_hub_data, "developer_hub.json")
-
+    scrape_developer_hub(db)
+    
     print("Scraping GitHub repositories...")
-    github_repositories_data = scrape_github_repositories()
-    store_data(github_repositories_data, "github_repositories.json")
-
+    scrape_github_repositories(db)
+    
+    db.close()
     print("Scraping complete!")
