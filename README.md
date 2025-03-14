@@ -1,4 +1,4 @@
-# Decentrix.AI
+# DevChain.AI
 
 Welcome to DevChain AI - Your Ultimate AI-Powered Blockchain Development Companion
 

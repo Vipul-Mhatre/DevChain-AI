@@ -32,14 +32,14 @@ const AgentCard = ({ agent }) => {
                 <div className="flex flex-row gap-2 items-center mt-4">
                     <Link
                         href={codeLink}
-                        className={`text-2xl p-2 rounded-xl ${buttonColor} text-white hover:scale-110 ease-out transition-all`}
+                        className={`text-2xl p-2 rounded-xl bg-purple-600 text-white hover:bg-purple-700 transition-colors`}
                         title={`Code on ${name}`}
                     >
                         <FaCode/>
                     </Link>
                     <Link
                         href={chatLink}
-                        className={`text-2xl p-2 rounded-xl ${buttonColor} text-white hover:scale-110 ease-out transition-all`}
+                        className={`text-2xl p-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition-colors`}
                         title={`Chat with ${name} agent`}
                     >
                         <IoMdChatbubbles/>

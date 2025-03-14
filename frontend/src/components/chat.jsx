@@ -186,7 +186,7 @@ const GitHubChat = () => {
   };
 
   return (
-    <div className="flex flex-col h-screen">
+    <div className="flex flex-col h-full">
       <div className="flex-grow overflow-auto p-4">
         {isInitialView ? (
           <div className="flex flex-col items-center justify-center h-full">
