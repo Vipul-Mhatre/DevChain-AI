@@ -36,13 +36,6 @@ https://github.com/user-attachments/assets/e2982636-9cff-438a-a848-4d24bc86e046
 - Learn as you build with context-aware suggestions and explanations
 - Explore blockchain concepts and features through guided interactions
 
-## Getting Started
-
-1. Visit [Decentrix.AI](https://decentrix-ai.vercel.app/)
-2. Sign up for an account or log in
-3. Choose your preferred blockchain platform
-4. Start building your smart contract or explore the platform's features
-
 ## Supported Blockchain Platforms
 
 - Flare
