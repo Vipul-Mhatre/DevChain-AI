@@ -9,7 +9,7 @@ import { useAccount } from "wagmi";
 import { useSolidityCodeAgent } from "@/hooks/useSolidityCodeAgent";
 import { Toaster, toast } from "react-hot-toast";
 import { useContractState } from "@/contexts/ContractContext";
-import { saveContractData, saveSolidityCode } from "@/lib/contractService";
+import { saveContractData, saveSolidityCode } from "../../../../lib/contractService";
 import ContractInteraction from "@/components/ContractInteractions";
 import { PRIVATE_KEY } from "@/utils/config";
 import ConstructorArgsModal from "@/components/ConstructorArgsModal";
