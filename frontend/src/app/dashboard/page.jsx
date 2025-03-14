@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FaTelegramPlane, FaCode } from "react-icons/fa";
 import Web3 from "web3";
-import { getContractsForUser, getSolidityCode } from "../../lib/contractService";
+import { getContractsForUser, getSolidityCode } from "../../lib/contractService.js";
 import { GlobalContext } from "@/contexts/UserContext";
 
 const chainConfig = {

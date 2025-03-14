@@ -93,16 +93,14 @@ const GitHubChat = () => {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          repo_url: url,
-        }),
+        body: JSON.stringify({ repo_url: url }),
       });
 
       if (!response.ok) {
         throw new Error(`API error: ${response.status}`);
       }
 
-      const data = await response.json();
+      await response.json();
       setRepoUrl(url);
       setIsInitialView(false);
       setMessages([
@@ -128,12 +126,8 @@ const GitHubChat = () => {
     try {
       const response = await fetch("https://flare-api-1075798775939.us-central1.run.app/query", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          query: text,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: text }),
       });
 
       if (!response.ok) {
@@ -141,13 +135,12 @@ const GitHubChat = () => {
       }
 
       const data = await response.json();
-      let formattedAnswer = data.answer.replace(/```tool_code\n([\s\S]*?)```/g, "```\n$1```");
-
-      setMessages((prevMessages) => [...prevMessages, { role: "assistant", text: formattedAnswer }]);
+      const formattedAnswer = data.answer.replace(/```tool_code\n([\s\S]*?)```/g, "```\n$1```");
+      setMessages((prev) => [...prev, { role: "assistant", text: formattedAnswer }]);
     } catch (error) {
       console.error("Error sending message:", error);
-      setMessages((prevMessages) => [
-        ...prevMessages,
+      setMessages((prev) => [
+        ...prev,
         { role: "assistant", text: `Error: ${error.message}` },
       ]);
     } finally {
@@ -163,18 +156,17 @@ const GitHubChat = () => {
     if (isInitialView) {
       initializeRepo(userInput);
     } else {
-      setMessages((prevMessages) => [...prevMessages, { role: "user", text: userInput }]);
+      setMessages((prev) => [...prev, { role: "user", text: userInput }]);
       sendMessage(userInput);
     }
-
     setUserInput("");
     setInputDisabled(true);
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-screen overflow-hidden">
       {isInitialView ? (
-        <div className="flex flex-col items-center justify-center h-full p-4">
+        <div className="flex flex-col items-center justify-center h-screen p-4">
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold mb-4">GitHub Repository Chat</h1>
             <p className="text-gray-600">Enter a GitHub repository URL to get started</p>
@@ -201,7 +193,7 @@ const GitHubChat = () => {
         </div>
       ) : (
         <>
-          <div className="flex-grow overflow-auto p-4">
+          <div className="flex-grow overflow-y-auto p-4 mx-24">
             {messages.map((msg, index) => (
               <Message key={index} role={msg.role} text={msg.text} />
             ))}
