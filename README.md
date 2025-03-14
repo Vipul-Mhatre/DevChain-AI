@@ -45,8 +45,7 @@ https://github.com/user-attachments/assets/e2982636-9cff-438a-a848-4d24bc86e046
 
 ## Supported Blockchain Platforms
 
-- Base
-- Optimism
+- Flare
 
 ## How It Works
 
