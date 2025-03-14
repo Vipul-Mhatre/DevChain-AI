@@ -1,43 +1,29 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import styles from "./chat.module.css";
-import { AssistantStream } from "openai/lib/AssistantStream";
-import Markdown from "react-markdown";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import CodeBlock from "@/components/CodeBlock.jsx"; // Assuming CodeBlock is in a separate file
-import { FaUser } from "react-icons/fa";
+import { FaUser, FaPaperPlane, FaGithub } from "react-icons/fa";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
-import { FaPaperPlane } from "react-icons/fa";
 
-// @ts-expect-error - no types for this yet
 const UserMessage = ({ text }) => {
   return (
-    <div className=" flex flex-row gap-3 items-start justify-start mt-10">
-      <div className=" flex items-center justify-center rounded-full w-10 h-10 bg-theme-purple ">
+    <div className="flex flex-row gap-3 items-start justify-start mt-10">
+      <div className="flex items-center justify-center rounded-full w-10 h-10 bg-theme-purple">
         <FaUser className="" />
       </div>
-      <div className={styles.userMessage}>{text}</div>
+      <div className="p-3 bg-gray-100 rounded-lg">{text}</div>
     </div>
   );
 };
 
-const AssistantMessage = ({ text, logo, name }) => {
-  // console.log(text);
+const AssistantMessage = ({ text }) => {
   return (
-    <div className=" flex flex-row gap-3 items-start justify-start my-5">
-      <div className="flex items-center gap-5">
-        <Image
-          src={logo}
-          className="rounded-full"
-          alt={name}
-          width={40}
-          height={40}
-        />
+    <div className="flex flex-row gap-3 items-start justify-start my-5">
+      <div className="flex items-center justify-center rounded-full w-10 h-10 bg-blue-500">
+        <FaGithub className="text-white" />
       </div>
-      <div className={styles.assistantMessage}>
+      <div className="p-3 bg-blue-50 rounded-lg max-w-3xl">
         <ReactMarkdown
           className=""
           remarkPlugins={[remarkGfm]}
@@ -45,11 +31,13 @@ const AssistantMessage = ({ text, logo, name }) => {
             code({ node, inline, className, children, ...props }) {
               const match = /language-(\w+)/.exec(className || "");
               return !inline && match ? (
-                <CodeBlock language={match[1]}>
-                  {String(children).replace(/\n$/, "")}
-                </CodeBlock>
+                <pre className="bg-gray-800 text-white p-4 rounded-md my-2 overflow-auto">
+                  <code className={className} {...props}>
+                    {String(children).replace(/\n$/, "")}
+                  </code>
+                </pre>
               ) : (
-                <code className={className} {...props}>
+                <code className="bg-gray-100 px-1 rounded" {...props}>
                   {children}
                 </code>
               );
@@ -70,318 +58,198 @@ const AssistantMessage = ({ text, logo, name }) => {
   );
 };
 
-const CodeMessage = ({ text }) => {
-  return (
-    <div>
-      <ReactMarkdown
-        className=" p-2 mb-2"
-        remarkPlugins={[remarkGfm]}
-        components={{
-          code({ node, inline, className, children, ...props }) {
-            const match = /language-(\w+)/.exec(className || "");
-            return !inline && match ? (
-              <CodeBlock language={match[1]}>
-                {String(children).replace(/\n$/, "")}
-              </CodeBlock>
-            ) : (
-              <code className={className} {...props}>
-                {children}
-              </code>
-            );
-          },
-          a({ node, children, href, ...props }) {
-            return (
-              <a href={href} className="text-blue-500 underline" {...props}>
-                {children}
-              </a>
-            );
-          },
-        }}
-      >
-        {text}
-      </ReactMarkdown>
-    </div>
-  );
-};
-
-const Message = ({ role, text, logo, name }) => {
+const Message = ({ role, text }) => {
   switch (role) {
     case "user":
       return <UserMessage text={text} />;
     case "assistant":
-      return <AssistantMessage text={text} logo={logo} name={name} />;
-    case "code":
-      return <AssistantMessage text={text} logo={logo} name={name} />;
+      return <AssistantMessage text={text} />;
     default:
       return null;
   }
 };
 
-const Chat = ({
-  functionCallHandler = () => Promise.resolve(""), // default to return empty string
-}) => {
+const GitHubChat = () => {
   const [userInput, setUserInput] = useState("");
   const [messages, setMessages] = useState([]);
   const [inputDisabled, setInputDisabled] = useState(false);
-  const [threadId, setThreadId] = useState("");
-  const [logo, setLogo] = useState("");
-  const [name, setName] = useState("");
-  const pathname = usePathname();
-
-  // automatically scroll to bottom of chat
+  const [isInitialView, setIsInitialView] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const [repoUrl, setRepoUrl] = useState("");
+  
+  // Automatically scroll to bottom of chat
   const messagesEndRef = useRef(null);
+  
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
-  // useEffect(() => {
-  //   scrollToBottom();
-  // }, [messages]);
-
-  // create a new threadID when chat component created
+  
   useEffect(() => {
-    const createThread = async () => {
-      const res = await fetch(`/api/assistants/threads`, {
-        method: "POST",
-      });
-      const data = await res.json();
-      setThreadId(data.threadId);
-    };
-    createThread();
-  }, []);
+    scrollToBottom();
+  }, [messages]);
 
-  useEffect(() => {
-    //get current page url
-    if (pathname) {
-      console.log(pathname);
-      const chain_name = pathname.split("/")[2];
-      const logo = `/chain/${chain_name}-logo.png`;
-      const name = chain_name.charAt(0).toUpperCase() + chain_name.slice(1);
-      setLogo(logo);
-      setName(name);
-    }
-  }, [pathname]);
-
-  const sendMessage = async (text) => {
-    console.log("sending message to agent ", name.toLowerCase());
-    const response = await fetch(
-      `/api/assistants/threads/${threadId}/messages`,
-      {
-        method: "POST",
-        body: JSON.stringify({
-          content: text,
-          agentName: name.toLowerCase(),
-        }),
-      }
-    );
-    const stream = AssistantStream.fromReadableStream(response.body);
-    handleReadableStream(stream);
-  };
-
-  const submitActionResult = async (runId, toolCallOutputs) => {
-    const response = await fetch(
-      `/api/assistants/threads/${threadId}/actions`,
-      {
+  const initializeRepo = async (url) => {
+    setIsLoading(true);
+    try {
+      const response = await fetch("https://flare-api-1075798775939.us-central1.run.app/clone", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          runId: runId,
-          toolCallOutputs: toolCallOutputs,
+          repo_url: url
         }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
       }
-    );
-    const stream = AssistantStream.fromReadableStream(response.body);
-    handleReadableStream(stream);
+      
+      const data = await response.json();
+      setRepoUrl(url);
+      setIsInitialView(false);
+      setMessages([
+        { role: "user", text: `Initialize repository: ${url}` },
+        { role: "assistant", text: "Repository initialized successfully! You can now ask questions about the codebase." }
+      ]);
+    } catch (error) {
+      console.error("Error initializing repository:", error);
+      setMessages([
+        { role: "user", text: `Initialize repository: ${url}` },
+        { role: "assistant", text: `Error initializing repository: ${error.message}` }
+      ]);
+    } finally {
+      setIsLoading(false);
+      setInputDisabled(false);
+    }
+  };
+
+  const sendMessage = async (text) => {
+    setInputDisabled(true);
+    setIsLoading(true);
+    
+    try {
+      const response = await fetch("https://flare-api-1075798775939.us-central1.run.app/query", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          query: text,
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      // Parse the response and handle code blocks
+      let formattedAnswer = data.answer;
+      
+      // Replace tool_code blocks with regular code blocks
+      formattedAnswer = formattedAnswer.replace(/```tool_code\n([\s\S]*?)```/g, '```\n$1```');
+      
+      setMessages(prevMessages => [
+        ...prevMessages,
+        { role: "assistant", text: formattedAnswer }
+      ]);
+    } catch (error) {
+      console.error("Error sending message:", error);
+      setMessages(prevMessages => [
+        ...prevMessages,
+        { role: "assistant", text: `Error: ${error.message}` }
+      ]);
+    } finally {
+      setIsLoading(false);
+      setInputDisabled(false);
+    }
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!userInput.trim()) return;
-    sendMessage(userInput);
-    setMessages((prevMessages) => [
-      ...prevMessages,
-      { role: "user", text: userInput },
-    ]);
+    
+    if (isInitialView) {
+      initializeRepo(userInput);
+    } else {
+      setMessages(prevMessages => [
+        ...prevMessages,
+        { role: "user", text: userInput }
+      ]);
+      sendMessage(userInput);
+    }
+    
     setUserInput("");
     setInputDisabled(true);
-    scrollToBottom();
-  };
-
-  /* Stream Event Handlers */
-
-  // textCreated - create new assistant message
-  const handleTextCreated = () => {
-    appendMessage("assistant", "");
-  };
-
-  // textDelta - append text to last assistant message
-  const handleTextDelta = (delta) => {
-    if (delta.value != null) {
-      appendToLastMessage(delta.value);
-    }
-    if (delta.annotations != null) {
-      annotateLastMessage(delta.annotations);
-    }
-  };
-
-  // imageFileDone - show image in chat
-  const handleImageFileDone = (image) => {
-    appendToLastMessage(`\n![${image.file_id}](/api/files/${image.file_id})\n`);
-  };
-
-  // toolCallCreated - log new tool call
-  const toolCallCreated = (toolCall) => {
-    if (toolCall.type != "code_interpreter") return;
-    appendMessage("code", "");
-  };
-
-  // toolCallDelta - log delta and snapshot for the tool call
-  const toolCallDelta = (delta, snapshot) => {
-    if (delta.type != "code_interpreter") return;
-    if (!delta.code_interpreter.input) return;
-    appendToLastMessage(delta.code_interpreter.input);
-  };
-
-  // handleRequiresAction - handle function call
-  const handleRequiresAction = async (event) => {
-    const runId = event.data.id;
-    const toolCalls = event.data.required_action.submit_tool_outputs.tool_calls;
-    // loop over tool calls and call function handler
-    const toolCallOutputs = await Promise.all(
-      toolCalls.map(async (toolCall) => {
-        const result = await functionCallHandler(toolCall);
-        return { output: result, tool_call_id: toolCall.id };
-      })
-    );
-    setInputDisabled(true);
-    submitActionResult(runId, toolCallOutputs);
-  };
-
-  // handleRunCompleted - re-enable the input form
-  const handleRunCompleted = () => {
-    setInputDisabled(false);
-  };
-
-  const handleReadableStream = (stream) => {
-    // messages
-    stream.on("textCreated", handleTextCreated);
-    stream.on("textDelta", handleTextDelta);
-
-    // image
-    stream.on("imageFileDone", handleImageFileDone);
-
-    // code interpreter
-    stream.on("toolCallCreated", toolCallCreated);
-    stream.on("toolCallDelta", toolCallDelta);
-
-    // events without helpers yet (e.g. requires_action and run.done)
-    stream.on("event", (event) => {
-      if (event.event === "thread.run.requires_action")
-        handleRequiresAction(event);
-      if (event.event === "thread.run.completed") handleRunCompleted();
-    });
-  };
-
-  /*
-    =======================
-    === Utility Helpers ===
-    =======================
-  */
-
-  const appendToLastMessage = (text) => {
-    setMessages((prevMessages) => {
-      const lastMessage = prevMessages[prevMessages.length - 1];
-      const updatedLastMessage = {
-        ...lastMessage,
-        text: lastMessage.text + text,
-      };
-      return [...prevMessages.slice(0, -1), updatedLastMessage];
-    });
-  };
-
-  const appendMessage = (role, text) => {
-    setMessages((prevMessages) => [...prevMessages, { role, text }]);
-  };
-
-  const annotateLastMessage = (annotations) => {
-    setMessages((prevMessages) => {
-      const lastMessage = prevMessages[prevMessages.length - 1];
-      const updatedLastMessage = {
-        ...lastMessage,
-      };
-      annotations.forEach((annotation) => {
-        if (annotation.type === "file_path") {
-          updatedLastMessage.text = updatedLastMessage.text.replaceAll(
-            annotation.text,
-            `/api/files/${annotation.file_path.file_id}`
-          );
-        }
-      });
-      return [...prevMessages.slice(0, -1), updatedLastMessage];
-    });
   };
 
   return (
-    <div>
-      <div className="">
-        {messages.length > 0 ? (
+    <div className="flex flex-col h-screen">
+      <div className="flex-grow overflow-auto p-4">
+        {isInitialView ? (
+          <div className="flex flex-col items-center justify-center h-full">
+            <div className="text-center mb-8">
+              <h1 className="text-3xl font-bold mb-4">GitHub Repository Chat</h1>
+              <p className="text-gray-600">Enter a GitHub repository URL to get started</p>
+            </div>
+            <form onSubmit={handleSubmit} className="w-full max-w-lg">
+              <div className="flex items-center border-2 rounded-lg overflow-hidden">
+                <input
+                  type="text"
+                  className="flex-grow p-4 focus:outline-none"
+                  value={userInput}
+                  onChange={(e) => setUserInput(e.target.value)}
+                  placeholder="https://github.com/username/repository"
+                  disabled={inputDisabled}
+                />
+                <button
+                  type="submit"
+                  className="bg-theme-purple p-4 text-white"
+                  disabled={inputDisabled}
+                >
+                  {isLoading ? "Loading..." : "Initialize"}
+                </button>
+              </div>
+            </form>
+          </div>
+        ) : (
           <div>
             {messages.map((msg, index) => (
-              <Message
-                key={index}
-                role={msg.role}
-                text={msg.text}
-                logo={logo}
-              />
+              <Message key={index} role={msg.role} text={msg.text} />
             ))}
             <div ref={messagesEndRef} />
           </div>
-        ) : (
-          <div className="text-center text-gray-400  text-3xl  my-auto flex mt-40 justify-center items-center">
-            <p>Answers will appear here!</p>
-          </div>
         )}
       </div>
-      <form
-        onSubmit={handleSubmit}
-        className="
-        flex 
-        justify-between 
-        items-center 
-        p-2 
-        bg-white 
-        shadow-md 
-        rounded-lg 
-        max-w-screen-xl 
-        mx-auto 
-        mt-2
-        fixed 
-        bottom-5
-        w-full
-        
-      "
-      >
-        <input
-          type="text"
-          className={styles.input}
-          value={userInput}
-          onChange={(e) => setUserInput(e.target.value)}
-          placeholder={
-            inputDisabled ? "Finding answers..." : "Enter you question"
-          }
-          disabled={inputDisabled}
-        />
-        <button
-          type="submit"
-          className="rounded-full h-10 w-10 flex items-center justify-center bg-theme-purple-light hover:text-theme-purple-dark"
-          disabled={inputDisabled}
-        >
-          <FaPaperPlane className="text-lg" />
-        </button>
-      </form>
+      
+      {!isInitialView && (
+        <div className="p-4 border-t">
+          <form
+            onSubmit={handleSubmit}
+            className="flex justify-between items-center p-2 bg-white shadow-md rounded-lg max-w-screen-xl mx-auto"
+          >
+            <input
+              type="text"
+              className="flex-grow p-2 focus:outline-none"
+              value={userInput}
+              onChange={(e) => setUserInput(e.target.value)}
+              placeholder={inputDisabled ? "Finding answers..." : "Ask a question about the repository"}
+              disabled={inputDisabled}
+            />
+            <button
+              type="submit"
+              className="rounded-full h-10 w-10 flex items-center justify-center bg-theme-purple-light hover:text-theme-purple-dark"
+              disabled={inputDisabled}
+            >
+              <FaPaperPlane className="text-lg" />
+            </button>
+          </form>
+        </div>
+      )}
     </div>
   );
 };
 
-export default Chat;
+export default GitHubChat;

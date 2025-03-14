@@ -1,6 +1,6 @@
 import { CoinbaseWalletSDK } from "@coinbase/wallet-sdk";
 
 export const sdk = new CoinbaseWalletSDK({
-  appName: "Decentrix AI",
+  appName: "DevChain AI",
   appChainIds: [84532],
 });

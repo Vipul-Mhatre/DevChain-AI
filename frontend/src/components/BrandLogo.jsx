@@ -14,8 +14,7 @@ function BrandLogo(props) {
             />
             <div
                 className=" text-theme-blue-dark text-xl font-bold"
-
-            >Decentrix.AI
+            >DevChain AI
             </div>
         </Link>
 

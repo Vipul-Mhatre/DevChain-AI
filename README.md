@@ -1,10 +1,10 @@
 # Decentrix.AI
 
-Welcome to Decentrix.AI - Your Ultimate AI-Powered Blockchain Development Companion
+Welcome to DevChain AI - Your Ultimate AI-Powered Blockchain Development Companion
 
 ## About
 
-Decentrix.AI is designed to streamline the blockchain development process, making it accessible and efficient for developers of all levels. Whether you're new to blockchain or an experienced developer, Decentrix.AI provides the tools and assistance you need to bring your ideas to life on various blockchain platforms.
+DevChain AI is designed to streamline the blockchain development process, making it accessible and efficient for developers of all levels. Whether you're new to blockchain or an experienced developer, DevChain AI provides the tools and assistance you need to bring your ideas to life on various blockchain platforms.
 
 ## Features
 
@@ -72,8 +72,8 @@ https://github.com/user-attachments/assets/e2982636-9cff-438a-a848-4d24bc86e046
 
 ## License
 
-Decentrix.AI is released under the [MIT License](LICENSE).
+DevChain AI is released under the [MIT License](LICENSE).
 
 ---
 
-Ready to revolutionize your blockchain development experience? Get started with Decentrix.AI today!
+Ready to revolutionize your blockchain development experience? Get started with DevChain AI today!
