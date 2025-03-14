@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useContext, useEffect } from "react";
 import { Avatar, Button, Card, CardBody, CardHeader } from "@nextui-org/react";
-import { ethers } from "ethers";
+import Web3 from "web3"; // Replaced ethers with Web3.js
 import SolidityEditor from "@/components/SolidityEditor";
 import axios from "axios";
 import WalletConnectButton from "@/components/WalletConnectButton";
@@ -12,8 +12,10 @@ import { useContractState } from "@/contexts/ContractContext";
 import { saveContractData, saveSolidityCode } from "@/lib/contractService";
 import ContractInteraction from "@/components/ContractInteractions";
 import { PRIVATE_KEY } from "@/utils/config";
+import {FaClipboard, FaClipboardCheck} from "react-icons/fa";
 import ConstructorArgsModal from "@/components/ConstructorArgsModal";
 import SecondaryNavbar from "@/components/SecondaryNavbar";
+import { GlobalContext } from "@/contexts/UserContext";
 
 export default function Editor() {
     const {
@@ -31,14 +33,16 @@ export default function Editor() {
     const [isDeploying, setIsDeploying] = useState(false);
     const [error, setError] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const { userData } = useContext(GlobalContext);
+
 
     const account = useAccount();
 
     const BACKEND_URL =
         "https://msl8g5vbv6.execute-api.ap-south-1.amazonaws.com/prod/api/contract/compile";
-    
-    // **Changed for Flare Testnet (Coston2)**
-    const FLARE_TESTNET_CHAIN_ID = 114; // Updated from BASE_SEPOLIA_CHAIN_ID = 84532
+
+    // Flare Testnet (Coston2) chain ID
+    const FLARE_TESTNET_CHAIN_ID = 114;
 
     useEffect(() => {
         const loadedCode = localStorage.getItem("loadedContractCode");
@@ -87,134 +91,102 @@ export default function Editor() {
             setCompiling(false);
         }
     };
-    const DeployContract = async ({ constructorArgs }) => {
-        console.log("Initiating contract deployment...");
-        setIsModalOpen(false);
-        
+
+    const DeployContract = async ({ constructorArgs = [] }) => {
+        if (!result || result.status !== "success") {
+            toast.error("Please compile the contract successfully before deploying.");
+            return;
+        }
+        console.log("Deploying contract...");
+
         try {
-            setIsDeploying(true);
-    
-            // **Check if MetaMask is installed**
+            // Check for MetaMask installation
             if (!window.ethereum) {
-                toast.error("MetaMask is not installed! Please install MetaMask to deploy contracts.");
+                toast.error("Please install MetaMask to deploy the contract.");
                 return;
             }
-    
-            // **Initialize provider and signer with MetaMask**
-            const provider = new ethers.providers.Web3Provider(window.ethereum);
-            const signer = provider.getSigner();
-    
-            // **Request account access from MetaMask**
-            console.log("Requesting account access...");
-            try {
-                await provider.send("eth_requestAccounts", []);
-            } catch (error) {
-                console.error("User denied account access:", error);
-                toast.error("Please connect MetaMask to continue.");
-                return;
-            }
-    
-            // **Define Flare Testnet (Coston2) network details**
-            const flareTestnet = {
-                chainId: "0x72", // 114 in hex
-                chainName: "Flare Testnet Coston2",
-                nativeCurrency: {
-                    name: "Coston2 Flare",
-                    symbol: "C2FLR",
-                    decimals: 18,
-                },
-                rpcUrls: ["https://coston2-api.flare.network/ext/C/rpc"],
-                blockExplorerUrls: ["https://coston2-explorer.flare.network/"],
-            };
-    
-            // **Check and switch to Flare Testnet**
-            let network = await provider.getNetwork();
-            console.log("Current network chainId:", network.chainId);
-            const FLARE_TESTNET_CHAIN_ID = 114;
-    
-            if (network.chainId !== FLARE_TESTNET_CHAIN_ID) {
-                console.log("Attempting to switch to Flare Testnet...");
-                try {
-                    await window.ethereum.request({
-                        method: "wallet_switchEthereumChain",
-                        params: [{ chainId: flareTestnet.chainId }],
-                    });
-                } catch (switchError) {
-                    if (switchError.code === 4902) {
-                        console.log("Flare Testnet not found in MetaMask, adding it...");
-                        await window.ethereum.request({
-                            method: "wallet_addEthereumChain",
-                            params: [flareTestnet],
-                        });
-                    } else {
-                        throw new Error("Network switch failed. Please switch to Flare Testnet manually in MetaMask.");
-                    }
-                }
-    
-                // **Verify network after switching**
-                network = await provider.getNetwork();
-                if (network.chainId !== FLARE_TESTNET_CHAIN_ID) {
-                    throw new Error("Failed to switch to Flare Testnet. Please switch manually in MetaMask.");
-                }
-            }
-    
-            // **Ensure ABI and bytecode are defined before proceeding**
-            if (!result || !result.abi || !result.bytecode) {
-                throw new Error("Smart contract ABI or bytecode is missing.");
-            }
-    
-            // **Create contract factory with MetaMask signer**
-            const contractFactory = new ethers.ContractFactory(result.abi, result.bytecode, signer);
-    
-            // **Deploy the contract via MetaMask**
-            console.log("Sending deployment transaction to MetaMask...");
-            const contract = await contractFactory.deploy(...constructorArgs);
-    
-            toast.success("Transaction sent! Awaiting MetaMask confirmation...");
-    
-            // **Wait for deployment confirmation**
-            console.log("Waiting for contract to be deployed...");
-            await contract.deployed();
-    
-            // **Construct block explorer URL**
-            const blockExplorerUrl = `https://coston2-explorer.flare.network/address/${contract.address}`;
-    
-            // **Save Solidity code**
-            const solidityCode = agentResponse; // Ensure 'agentResponse' contains the Solidity code
-            const fileName = `Contract_${contract.address}.sol`;
+
+            // Request wallet connection
+            await window.ethereum.request({ method: "eth_requestAccounts" });
+
+            // Initialize Web3.js with MetaMask provider
+            const web3 = new Web3(window.ethereum);
+
+            // Verify network (Flare Testnet - Coston2)
+            const chainId = await web3.eth.getChainId();
+            // if (chainId !== FLARE_TESTNET_CHAIN_ID) {
+            //     toast.error("Please switch to the Flare Testnet (Coston2) in MetaMask.");
+            //     return;
+            // }
+
+            setIsDeploying(true);
+
+            // Get the user's account
+            const accounts = await web3.eth.getAccounts();
+            const account = accounts[0];
+            console.log("account", account);
+            // Create contract instance with ABI
+            const contract = new web3.eth.Contract(result.abi);
+
+            // Ensure bytecode has '0x' prefix
+            const bytecode = result.bytecode.startsWith('0x') ? result.bytecode : '0x' + result.bytecode;
+
+            // Prepare deployment transaction
+            const deployTx = contract.deploy({
+                data: bytecode,
+                arguments: constructorArgs,
+            });
+
+            // Estimate gas
+            const gasEstimate = await deployTx.estimateGas({ from: account });
+
+            // Deploy the contract
+            const deployedContract = await deployTx.send({
+                from: account,
+                gas: gasEstimate,
+            });
+
+            const contractAddress = deployedContract.options.address;
+            console.log(contractAddress)
+
+            // Flare Testnet (Coston2) block explorer URL
+            const blockExplorerUrl = `https://coston2-explorer.flare.network/address/${contractAddress}`;
+
+            // Save Solidity code
+            const solidityCode = agentResponse; // Corrected from 'suggestions' to 'agentResponse'
+            const fileName = `Contract_${contractAddress}.sol`;
             const solidityFilePath = await saveSolidityCode(solidityCode, fileName);
-    
-            // **Prepare and save contract data**
+
+            // Prepare contract data
             const contractData = {
-                chainId: FLARE_TESTNET_CHAIN_ID,
-                contractAddress: contract.address,
+                chainId: Number(114n), // or simply 114 if the value is constant
+                contractAddress: deployedContract.options.address,
                 abi: result.abi,
                 bytecode: result.bytecode,
                 blockExplorerUrl: blockExplorerUrl,
                 solidityFilePath: solidityFilePath,
                 deploymentDate: new Date().toISOString(),
             };
-    
-            // **Get user address from signer**
-            const userAddress = await signer.getAddress();
-            if (userAddress) {
-                await saveContractData(contractData, userAddress);
+
+            // Save contract data if user email is available
+            if (account) {
+                await saveContractData(contractData, account);
             } else {
-                console.error("User address not available");
+                console.error("Account addresss not available");
             }
-    
-            // **Update contract state**
-            await setContractState((prevState) => ({
+
+            // Update contract state
+            setContractState((prevState) => ({
                 ...prevState,
-                address: contract.address,
+                address: contractAddress,
                 isDeployed: true,
                 blockExplorerUrl: blockExplorerUrl,
             }));
-    
-            // **Display success message**
+
+            // Display success message
             toast.success(
                 <div>
-                    Contract deployed successfully at {contract.address}!
+                    Contract deployed successfully!
                     <a
                         href={blockExplorerUrl}
                         target="_blank"
@@ -226,30 +198,15 @@ export default function Editor() {
                 </div>,
                 { duration: 5000 }
             );
-            console.log(`Contract deployed at: ${contract.address}`);
-    
+            console.log(`Contract deployed at: ${contractAddress}`);
         } catch (error) {
-            setError(error);
-            console.error("Deployment error:", error);
-    
-            // **Enhanced error handling**
-            if (error.code === "INVALID_ARGUMENT") {
-                toast.error("Invalid constructor arguments provided.");
-            } else if (error.code === 4001) {
-                toast.error("Transaction rejected by user in MetaMask.");
-            } else if (error.message.includes("insufficient funds")) {
-                toast.error("Insufficient funds in your MetaMask account to deploy the contract.");
-            } else if (error.message.includes("Network switch failed")) {
-                toast.error(error.message);
-            } else {
-                toast.error(`Deployment failed: ${error.message || "Unknown error"}`);
-            }
+            console.error("Error deploying contract:", error);
+            toast.error("Failed to deploy contract. Check the console for details.");
         } finally {
             setIsDeploying(false);
         }
     };
 
-    
     const handleCodeChange = (code) => {
         setAgentResponse(code);
         localStorage.setItem("loadedContractCode", code);
@@ -260,39 +217,75 @@ export default function Editor() {
         const [Bytecopied, setByteCopied] = useState(false);
 
         const copyToClipboard = (text, ele) => {
+            console.log(text);
             navigator.clipboard.writeText(text);
         };
 
         if (!result) {
             return (
-                <div className="bg-gray-100 border border-gray-400 text-black p-4 rounded">
+                <div className="text-gray-600 ">
                     Compilation results will appear here.
                 </div>
             );
         }
-        if (result.status === "error") {
-            const error = result.message;
+
+        if (result.errors && result.errors.length > 0) {
+            const error = result.errors[0];
             return (
                 <div>
                     <div className="bg-red-100 border border-red-400 text-red-700 p-4 rounded">
                         <h3 className="font-bold">Compilation failed!</h3>
-                        <p>{error}</p>
+                        <p>{error.message}</p>
                     </div>
                 </div>
             );
         }
+
         if (result.status === "success") {
             return (
                 <div>
                     <div className="bg-green-100 border border-green-400 text-green-700 p-4 rounded">
                         <h3 className="font-bold">Compilation Successful!</h3>
                     </div>
+                    <div className=" p-4 rounded flex items-center space-x-4 justify-end my-2">
+                        <Button color="primary" className="flex gap-2 items-center" onClick={
+                            () => {
+                                copyToClipboard(result.bytecode, 1)
+                            }
+                        }>
+                            <h4 className="">
+                                {
+                                    Bytecopied ? "Bytecode Copied" : "Copy Bytecode"
+                                }
+                            </h4>
+                            {
+                                Bytecopied ? <FaClipboardCheck/>
+                                    : <FaClipboard/>
+                            }
+                        </Button>
+                        <Button color="primary" className="flex gap-2 items-center" onClick={() => {
+                            copyToClipboard(JSON.stringify(result.abi), 0)
+                        }}>
+                            <h4 className="">{
+                                ABIcopied ? "ABI Copied" : "Copy ABI"
+                            }</h4>
+                            {
+                                ABIcopied ? <FaClipboardCheck/>
+                                    : <FaClipboard/>
+                            }
+                        </Button>
+
+                    </div>
+
                 </div>
-            );
+
+            )
+                ;
         }
+
         return (
             <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 p-4 rounded">
-                Error while compilation!.
+                Unexpected result format.
             </div>
         );
     };
@@ -330,11 +323,9 @@ export default function Editor() {
             <div className="flex ">
                 <div className="w-1/2 p-2">
                     <Card className="flex-grow h-full p-6">
-                        <div className="max-w-2xl bg-gray-100 p-4 rounded-lg shadow-md">
+                        <div className="max-w-full bg-gray-100 p-4 rounded-lg shadow-md">
                             <div className="flex items-center space-x-4">
-                                {/* **Changed for Flare Testnet (Coston2)** */}
-                                {/* Removed Base logo; optionally replace with Flare logo if available */}
-                                {/* <Avatar isBordered radius="md" src="/chain/flare-logo.png" /> */}
+                                <Avatar isBordered radius="sm" src="/chain/flare-logo.png" />
                                 <div className="flex-grow">
                                     {account?.isConnected ? (
                                         <div className="flex items-center justify-between">
@@ -377,8 +368,7 @@ export default function Editor() {
                             <RenderResult />
                         </div>
                         {account?.isConnected ? (
-                            // **Changed for Flare Testnet (Coston2)**
-                            <ContractInteraction currChainId={FLARE_TESTNET_CHAIN_ID} /> // Updated from BASE_SEPOLIA_CHAIN_ID
+                            <ContractInteraction currChainId={FLARE_TESTNET_CHAIN_ID} />
                         ) : (
                             <div className="text-gray-600 ">
                                 <p className="p-2 ">
@@ -389,16 +379,15 @@ export default function Editor() {
                     </Card>
                 </div>
 
-                {/* code editor part */}
+                {/* Code editor part */}
                 <div className="w-1/2 p-2 flex flex-col">
                     <Card className="flex-grow">
                         <CardHeader className="flex justify-between items-center px-4 py-2">
                             <div className="flex items-center">
-                                {/* **Changed for Flare Testnet (Coston2)** */}
-                                <h2 className="text-xl font-bold">Flare Testnet</h2> // Updated from "Base"
+                                <h2 className="text-xl mt-4 ml-3 font-bold">Flare Testnet</h2>
                             </div>
 
-                            {/* compile and deploy buttons */}
+                            {/* Compile and deploy buttons */}
                             {account?.isConnected && (
                                 <div className="flex items-center justify-center py-2">
                                     <Button

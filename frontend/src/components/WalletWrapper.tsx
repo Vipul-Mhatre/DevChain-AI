@@ -44,11 +44,11 @@ export default function WalletWrapper({
             <Address className="" />
             <EthBalance />
           </Identity>
-          <WalletDropdownBasename />
-          <WalletDropdownLink icon="wallet" href="https://wallet.coinbase.com">
+          {/* <WalletDropdownBasename /> */}
+          {/* <WalletDropdownLink icon="wallet" href="https://wallet.coinbase.com">
             Go to Wallet Dashboard
-          </WalletDropdownLink>
-          <WalletDropdownFundLink />
+          </WalletDropdownLink> */}
+          {/* <WalletDropdownFundLink /> */}
           <WalletDropdownDisconnect />
         </WalletDropdown>
       </Wallet>

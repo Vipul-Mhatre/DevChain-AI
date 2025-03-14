@@ -1,41 +1,91 @@
-"use client"
-import React, { useState, useEffect, useContext } from 'react';
-import Image from 'next/image';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { FaTelegramPlane, FaCode } from 'react-icons/fa';
-import { getContractsForUser, getSolidityCode } from '@/lib/contractService';
+"use client";
+import React, { useState, useEffect, useContext } from "react";
+import Image from "next/image";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { FaTelegramPlane, FaCode } from "react-icons/fa";
+import Web3 from "web3";
+import { getContractsForUser, getSolidityCode } from "@/lib/contractService";
 import { GlobalContext } from "@/contexts/UserContext";
 
 const chainConfig = {
-  2710: { name: 'Morph Testnet', logo: '/chain/morph-logo.jpeg', path: 'morph' },
-  31: { name: 'RootStock Testnet', logo: '/chain/base-logo.png', path: 'base' },
-  8008135: { name: 'Fhenix Helium', logo: '/chain/fhenix-logo.png', path: 'fhenix' },
-  rootstock: { name: 'Chainlink', logo: '/chain/base-logo.png', path: 'base' },
-  84532: { name: 'Base Sepolia', logo: '/chain/base-logo.png', path: 'base' },
-  8453: { name: 'Base', logo: '/chain/base-logo.png', path: 'base' },
-  11155420: { name: 'Optimism Sepolia', logo: '/chain/optimism-logo.png', path: 'optimism' },
-  10: { name: 'Optimism', logo: '/chain/optimism-logo.png', path: 'optimism' },
-  default: { name: 'Unknown Chain', logo: '/chain/hedera-logo.png', path: 'base' }
+  2710: { name: "Morph Testnet", logo: "/chain/morph-logo.jpeg", path: "morph" },
+  31: { name: "RootStock Testnet", logo: "/chain/base-logo.png", path: "base" },
+  8008135: { name: "Fhenix Helium", logo: "/chain/fhenix-logo.png", path: "fhenix" },
+  rootstock: { name: "Chainlink", logo: "/chain/base-logo.png", path: "base" },
+  84532: { name: "Base Sepolia", logo: "/chain/base-logo.png", path: "base" },
+  8453: { name: "Base", logo: "/chain/base-logo.png", path: "base" },
+  11155420: { name: "Optimism Sepolia", logo: "/chain/optimism-logo.png", path: "optimism" },
+  10: { name: "Optimism", logo: "/chain/optimism-logo.png", path: "optimism" },
+  114: { name: "Flare Testnet", logo: "/chain/flare-logo.png", path: "flare" },
+  default: { name: "Unknown Chain", logo: "/chain/hedera-logo.png", path: "base" },
 };
 
 const getChainInfo = (chainId) => {
-  if (chainId === 'rootstock') return chainConfig.rootstock;
+  if (chainId === "rootstock") return chainConfig.rootstock;
   return chainConfig[chainId] || chainConfig.default;
 };
 
 const DashboardPage = () => {
   const [userContracts, setUserContracts] = useState([]);
+  const [account, setAccount] = useState(null);
+  const [isWalletConnected, setIsWalletConnected] = useState(false);
+  const [nameInitials, setNameInitials] = useState("");
   const { userData } = useContext(GlobalContext);
-  const [nameInitials, setNameInitials] = useState('');
   const router = useRouter();
 
+  // Connect to wallet and get account address
   useEffect(() => {
-    if (userData && userData.email) {
+    const connectWallet = async () => {
+      if (window.ethereum) {
+        try {
+          const web3 = new Web3(window.ethereum);
+          const accounts = await web3.eth.getAccounts();
+          if (accounts.length > 0) {
+            setAccount(accounts[0]);
+            setIsWalletConnected(true);
+          } else {
+            setIsWalletConnected(false);
+          }
+        } catch (error) {
+          console.error("Error connecting to wallet:", error);
+          setIsWalletConnected(false);
+        }
+      } else {
+        console.log("Please install MetaMask!");
+        setIsWalletConnected(false);
+      }
+    };
+
+    connectWallet();
+
+    // Listen for account changes
+    if (window.ethereum) {
+      window.ethereum.on("accountsChanged", (accounts) => {
+        if (accounts.length > 0) {
+          setAccount(accounts[0]);
+          setIsWalletConnected(true);
+        } else {
+          setAccount(null);
+          setIsWalletConnected(false);
+        }
+      });
+    }
+
+    // Cleanup listener on unmount
+    return () => {
+      if (window.ethereum) {
+        window.ethereum.removeListener("accountsChanged", () => {});
+      }
+    };
+  }, []);
+
+  // Fetch contracts when account is available and set name initials if userData exists
+  useEffect(() => {
+    if (account) {
       const fetchContracts = async () => {
         try {
-          const contracts = await getContractsForUser(userData.email);
-          console.log(contracts)
+          const contracts = await getContractsForUser(account);
           setUserContracts(contracts);
         } catch (error) {
           console.error("Error fetching user contracts:", error);
@@ -43,37 +93,32 @@ const DashboardPage = () => {
       };
 
       fetchContracts();
-
-      if (userData.name) {
-        const initials = userData.name.split(' ').map((n) => n[0]).join('');
-        setNameInitials(initials);
-      }
     }
-  }, [userData]);
+
+    if (userData && userData.name) {
+      const initials = userData.name.split(" ").map((n) => n[0]).join("");
+      setNameInitials(initials);
+    }
+  }, [account, userData]);
 
   const handleViewCode = async (contract) => {
     try {
-      // Get the code from Firebase using the stored file path
       const code = await getSolidityCode(contract.solidityFilePath);
-      
-      // Get the appropriate agent path based on chain ID
-      const chainInfo = await getChainInfo(contract.chainId);
-      
-      // Store the code in localStorage for the agent page to access
-      localStorage.setItem('loadedContractCode', code);
-      
-      // Navigate to the appropriate agent page
+      const chainInfo = getChainInfo(contract.chainId);
+      localStorage.setItem("loadedContractCode", code);
       router.push(`/agent/${chainInfo.path}/code`);
     } catch (error) {
       console.error("Error loading contract code:", error);
-      // You might want to show a toast notification here
     }
   };
 
-  if (!userData) {
+  // Show message if wallet is not connected
+  if (!isWalletConnected) {
     return (
       <div className="p-8 min-h-screen bg-gray-100 flex items-center justify-center">
-        <p className="text-2xl font-bold">Please log in to view your dashboard.</p>
+        <p className="text-2xl font-bold">
+          Please connect your wallet to view your dashboard.
+        </p>
       </div>
     );
   }
@@ -83,7 +128,7 @@ const DashboardPage = () => {
       <div className="max-w-7xl mx-auto">
         <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
           <div className="flex items-center space-x-4">
-            {userData.profileImage ? (
+            {userData && userData.profileImage ? (
               <Image
                 src={userData.profileImage}
                 alt="User Avatar"
@@ -93,13 +138,23 @@ const DashboardPage = () => {
               />
             ) : (
               <div className="w-20 h-20 bg-theme-purple-light rounded-full flex items-center justify-center text-2xl font-bold">
-                {nameInitials}
+                {account ? account.slice(0, 2).toUpperCase() : nameInitials || "??"}
               </div>
             )}
             <div>
-              <h1 className="text-3xl font-bold">{userData.name || 'Welcome!'}</h1>
-              <p className="text-gray-600">{userData.email}</p>
-              {userData.verifier && <p className="text-sm text-gray-500">Verified by: {userData.verifier}</p>}
+              <h1 className="text-3xl font-bold">
+                {userData?.name || "Welcome!"}
+              </h1>
+              <p className="text-gray-600">
+                {account
+                  ? `${account.slice(0, 6)}...${account.slice(-4)}`
+                  : userData?.email || "No account connected"}
+              </p>
+              {userData?.verifier && (
+                <p className="text-sm text-gray-500">
+                  Verified by: {userData.verifier}
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -118,9 +173,7 @@ const DashboardPage = () => {
                       width={30}
                       height={30}
                     />
-                    <div className="text-xl font-bold">
-                      {chainInfo.name}
-                    </div>
+                    <div className="text-xl font-bold">{chainInfo.name}</div>
                   </div>
                   <div className="flex gap-2">
                     <button
@@ -142,7 +195,8 @@ const DashboardPage = () => {
                   {contract.contractAddress.slice(-8)}
                 </div>
                 <div className="font-light text-sm">
-                  Deployed on: {new Date(contract.deploymentDate).toLocaleDateString()}
+                  Deployed on:{" "}
+                  {new Date(contract.deploymentDate).toLocaleDateString()}
                 </div>
               </div>
             );

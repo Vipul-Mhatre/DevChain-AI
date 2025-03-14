@@ -3,7 +3,7 @@ import { connectorsForWallets } from "@rainbow-me/rainbowkit";
 import { coinbaseWallet, metaMaskWallet } from "@rainbow-me/rainbowkit/wallets";
 import { useMemo } from "react";
 import { http, createConfig } from "wagmi";
-import { base, baseSepolia, optimismSepolia, optimism } from "wagmi/chains";
+import { base, baseSepolia, optimismSepolia, optimism, flareTestnet, flare } from "wagmi/chains";
 import { NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID } from "./config";
 
 export function useWagmiConfig() {
@@ -15,15 +15,16 @@ export function useWagmiConfig() {
   }
 
   return useMemo(() => {
+    // Define wallet connectors with MetaMask in "Recommended Wallets"
     const connectors = connectorsForWallets(
       [
         {
-          groupName: "Recommended Wallet",
-          wallets: [coinbaseWallet],
+          groupName: "Recommended Wallets",
+          wallets: [metaMaskWallet],
         },
         {
           groupName: "Other Wallets",
-          wallets: [metaMaskWallet],
+          wallets: [coinbaseWallet ],
         },
       ],
       {
@@ -32,15 +33,17 @@ export function useWagmiConfig() {
       }
     );
 
+    // Create Wagmi config with reordered chains (Base moved down)
     const wagmiConfig = createConfig({
-      chains: [optimism, optimismSepolia, base, baseSepolia],
-      // turn off injected provider discovery
-      multiInjectedProviderDiscovery: false,
+      chains: [optimism, optimismSepolia, flare, flareTestnet, base, baseSepolia],
+      multiInjectedProviderDiscovery: false, // Turn off injected provider discovery
       connectors,
       ssr: true,
       transports: {
         [optimism.id]: http(),
         [optimismSepolia.id]: http(),
+        [flare.id]: http(),
+        [flareTestnet.id]: http(),
         [base.id]: http(),
         [baseSepolia.id]: http(),
       },
