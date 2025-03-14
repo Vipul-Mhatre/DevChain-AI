@@ -4,26 +4,16 @@ import {GlobalContext} from "@/contexts/UserContext";
 import Link from "next/link";
 import AgentCard from '@/components/AgentCard';
 
-
 function App() {
     const agentData = [
         {
-            name: "Base",
-            logo: "/chain/base-logo.png",
-            description: "Base is a secure, low-cost, builder-friendly Ethereum L2 built to bring the next billion users onchain.",
-            backgroundColor: "bg-theme-green-light",
-            buttonColor: "bg-theme-green-dark",
-            chatLink: "/agent/base/chat",
-            codeLink: "/agent/base/code"
-         },
-        {
-            name: "Optimism",
-            logo: "/chain/optimism-logo.png",
-            description: "The fast and affordable platform powering teams of all sizes. Join Base, Zora, OP Mainnet, Farcaster, and hundreds more on the Superchain.",
-            backgroundColor: "bg-theme-gray-light",
-            buttonColor: "bg-theme-gray-dark",
-            chatLink: "/agent/optimism/chat",
-            codeLink: "/agent/optimism/code"
+            name: "Flare",
+            logo: "/chain/flare-logo.png", // Ensure this image is available in the public directory
+            description: "Flare is the blockchain network designed to bring real-world data to decentralized applications.",
+            backgroundColor: "bg-theme-blue-light",  
+            buttonColor: "bg-theme-blue-dark", 
+            chatLink: "/agent/flare/chat",
+            codeLink: "/agent/flare/code"
         },
     ];
 
@@ -54,6 +44,11 @@ function App() {
                         <AgentCard key={index} agent={agent}/>
                     ))}
                 </div>
+            </div>
+
+            {/* Google Cloud mention */}
+            <div className="text-center mt-10 text-lg">
+                <span>Sponsored by <a href="https://cloud.google.com" target="_blank" className="text-blue-500">Google Cloud</a></span>
             </div>
         </main>
     );
